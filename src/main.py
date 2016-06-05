@@ -1,252 +1,236 @@
 __author__ = 'pelipenko'
 import re
-import fileinput
-
-class Line:
-    key = ''
-    value = ''
-    postfix = ''
-
-    def __str__(self):
-        return "__str__"
-
-    def __unicode__(self):
-         return "__unicode__"
-
-    def __repr__(self):
-         return 'prefix:\'{0}\' key:\'{1}\' value:\'{2}\' postfix:\'{3}\'' .format(self.key, self.value, self.postfix)
-
-class Parser:
-    def split_line(self, line):
-        if line.isspace():
-            return None
-
-        lst = list(line.rstrip('\n'))
-
-        l = Line()
-        isComment = False
-        #found = re.findall("\\s*[\S]*\S", line)
-        found = re.compile("^\s*(\b[a-zA-Z0-9]+)\s*", line)
-
-        print 'f', found
-        if len(found) != 0:
-            key = found[0]
-            if found[0][0] is '#': #comment detected
-                return None #l.prefix = ''.join(rc)
-            else:
-                l.key = key.strip()
-                idx = 0
-                for idx, word in enumerate(found):
-                    if word.strip()[0] is '#':
-                        break
-                l.value = ''.join(found[1:idx])
-                if idx != len(found):
-                    l.postfix = ''.join(found[idx:])
-        return l
-
-    def generateLine(self, line = Line()):
-        return '{0} {1} {2}'.format(line.key, line.value, line.postfix)
-
-class SettingsParser:
-    def __init__(self, filename):
-        self._filename = filename
-        self._parser = Parser()
-        self._settingsDict = dict()
-        self._keyValueDict = dict()
-    '''
-    def memory_read_all(self):
-        with open(self._filename, 'r') as file:
-            for idx, line in enumerate(file):
-
-    '''
-
-    def read_all(self):
-        with open(self._filename, 'r') as file:
-            for idx, line in enumerate(file):
-                line_obj = self._parser.split_line(line)
-                if line_obj is not None:
-                    self._settingsDict[idx] = line_obj
-                    self._keyValueDict[line_obj.key] = line_obj.value
-        return self._keyValueDict
-
-    # replace if key exists
-    def set(self, key='', value='', saveToFile = False):
-        self._keyValueDict[key] = value
-        if saveToFile:
-            self.save(key)
-        return
-
-    '''
-    def get(self, key='', value=''):
-        with open(self._filename, 'r') as file:
-            for idx, line in enumerate(file):
-        return
-    '''
-
-    def remove(self, key_to_remove='', remove_all_line = False):
-        key_was_removed = False
-        for line in fileinput.input(self._filename, inplace=True, mode='r'):
-            key_was_removed = False
-            strip_line = line.strip()
-            lineObj = self._parser.split_line(strip_line)
-            if lineObj is not None:
-                if lineObj.key == key_to_remove:
-                    if not remove_all_line:
-                        lineObj.key = ''
-                        lineObj.value = ''
-                        print self._parser.generateLine(lineObj)
-
-                    key_was_removed = True
-            if not key_was_removed:
-                print strip_line
-        '''
-        if not key_was_removed:
-            raise ValueError("Key was not found")
-        '''
-        # if keyToSave save only key
-        return
-
-    def save(self, key_to_save='', value_to_save=''):
-        for line in fileinput.input(self._filename, inplace=True, mode='r'):
-            line_was_printed = False
-            strip_line = line.strip()
-            lineObj = self._parser.split_line(strip_line)
-            if lineObj is not None:
-                if lineObj.key == key_to_save:
-                    lineObj.value = value_to_save
-                    print self._parser.generateLine(lineObj)
-                    line_was_printed = True
-            if not line_was_printed:
-                print strip_line
-        # if keyToSave save only key
-        return
 
 
-
-# let's try to create a sequence of objects, like list:
-#
-# key value for key #comment
-# # comment2
-#
-# key2
-#
-# Will transform to:
-# KeyValuePairWithComment("key", "value for key", "comment")
-# Comment("comment2")
-# EmptyString()
-# KeyValuePair("key2", "")
-# EmptyString()
-
-class Comment:
-    def __init__(self,text=''):
+class BaseString(object):
+    def __init__(self, text=''):
         self.text = text
+
     text = ''
-    def __repr__(self):
-        return "Comment:'{0}'".format(self.text)
 
-class KeyValue:
-    key = ''
-    value = ''
+    def to_string(self):
+        return self.text
 
-class KeyValueWithComment:
-    key = ''
-    value = ''
-    comment = Comment
-    def __repr__(self):
-        return "KeyValuePairWithComment: '{0}' '{1}' '{2}'".format(self.key, self.value, self.comment.text)
 
-class EmptyString:
-    text = ''
+class EmptyString(BaseString):
     def __repr__(self):
         return "EmptyString: ''"
 
-class NotValidString:
-    text = ''
+
+class NotValidString(BaseString):
     def __repr__(self):
         return "NotValidString: '{0}'".format(self.text)
 
 
+class Comment(BaseString):
+    def __repr__(self):
+        return "Comment:'{0}'".format(self.text)
+
+
+class KeyValue(object):
+    def __init__(self, key='', value=''):
+        self.key = key
+        self.value = value
+    key = ''
+    value = ''
+
+    def to_string(self):
+        return '{0} {1}'.format(self.key, self.value)
+
+    def __repr__(self):
+        return "KeyValue: '{0}' '{1}' ".format(self.key, self.value)
+
+    def to_key_value(self):
+        return self
+
+
+class KeyValueWithComment(KeyValue):
+    comment = ''
+
+    def __init__(self, key='', value='', comment=''):
+        KeyValue.__init__(self, key, value)
+        self.comment = comment
+
+    def to_string(self):
+        return '{0} {1}'.format(KeyValue.to_string(self), self.comment)
+
+    def __repr__(self):
+        return "KeyValueWithComment: '{0}' '{1}' ".format(self.key, self.value)
+
+    def to_key_value(self):
+        return KeyValue(self.key, self.value)
+
+
 class FileSerializer:
+    def __init__(self, filename):
+        self._filename = filename
+        self._file = None
+        self._objects = list()
+        self._current = 0
+        self._is_reversed = False
+
+    def open_file(self, mode='r', reversed_order=False):
+        self._file = open(self._filename, mode)
+        self._is_reversed = reversed_order
+
+        if self._is_reversed:
+            for line in reversed(self._file.readlines()):
+                self._objects.append(self._parse_line(line))
+        else:
+            for line in self._file.readlines():
+                self._objects.append(self._parse_line(line))
+        self._current = 0
+
+    def close_file(self):
+        if self._file is not None and not self._file.closed:
+            self._file.close()
+        self._objects = list()
+
+    def read_next_object(self):
+        if len(self._objects) > self._current:
+            some_object = self._objects[self._current]
+            self._current += 1
+            return some_object
+        else:
+            return None
+
+    def remove_current(self):
+        del self._objects[self._current - 1]
+        if len(self._objects) > 0:
+            if self._current < len(self._objects):
+                self._current -= 1
+            else:
+                self._current = 0
+
+    def add_key_value(self, obj):
+        if self._is_reversed:
+            self._objects.insert(0, obj)
+        else:
+            self._objects.append(obj)
+
+    def flush(self):
+        # clear file
+        self._file.seek(0)
+        self._file.truncate()
+
+        # write new content
+        lines = list()
+        if self._is_reversed:
+            for obj in reversed(self._objects):
+                print obj.to_string()
+                lines.append(obj.to_string() + '\n')
+        else:
+            for obj in self._objects:
+                lines.append(obj.to_string() + '\n')
+
+        #print [x.to_string() for x in self._objects]
+        self._file.writelines(lines)
+        return
+
     def _parse_line(self, line=''):
         if line.isspace():
             return EmptyString()
 
-        found = re.findall("\\s*[\S]*\S", line)
-
-        if len(found) != 0:
-            if found[0][0] is '#': #comment detected
-                return Comment(line.strip())
+        stripped_line = line.strip()
+        found = re.findall(r'^\s*(\b[a-zA-Z]+[a-zA-Z0-9_-]+)\s*((?:\b[\S]+\s*)+)(#.*)?$', stripped_line)
+        if len(found) == 0:
+            if stripped_line[0] == '#':
+                return Comment(stripped_line)
             else:
-                pair = KeyValueWithComment()
-                pair.key = found[0].strip()
-                idx = 0
-                for idx, word in enumerate(found):
-                    if word.strip()[0] is '#':
-                        break
-                pair.value = ''.join(found[1:idx])
-                if idx != len(found):
-                    pair.comment = Comment(''.join(found[idx:]))
+                return NotValidString(stripped_line)
+        else:
+            if len(found[0][2]) == 0:
+                return KeyValue(found[0][0], found[0][1])
+            else:
+                return KeyValueWithComment(found[0][0], found[0][1], found[0][2])
 
-                return pair
-        return NotValidString(line)
 
-    def read_file(self, filename):
-        serialized_object_list = list()
-        with open(filename, 'r') as file:
-            for line in file:
-                serialized_object_list.append(self._parse_line(line))
-
-        return serialized_object_list
-
-class SettingsParser2:
-    def __init__(self, filename):
-        self._filename = filename
-        serializer = FileSerializer()
-        serializer.read_file(filename)
-        self._settingsDict = dict()
-        self._keyValueDict = dict()
+class SettingsParser:
+    def __init__(self, filename=''):
+        self._serializer = FileSerializer(filename)
 
     # returns list of KeyValues
     # maybe return without comments?
     def read_all_keys(self):
-        return
+        self._serializer.open_file('r', False)
+        key_value_objects = list()
+        current = self._serializer.read_next_object()
 
-    # returns KeyValue by key
+        while current is not None:
+            if self._is_key_value(current):
+                key_value_objects.append(current.to_key_value())
+            current = self._serializer.read_next_object()
+
+        self._serializer.close_file()
+        return key_value_objects
+        # return [x for x in objects if (isinstance(x, (KeyValueWithComment, KeyValue)))]
+
+    # returns KeyValue by key or None
     # reads from end of file
-    #
-    # alg:
-    # open file, read line by line while didn't get our value
-    def get(self,key=''):
-        return
+    def get(self, key=''):
+        self._serializer.open_file('r', True)
+        current = self._serializer.read_next_object()
+        found = None
+
+        while current is not None:
+            if self._is_key_value(current):
+                if current.key == key:
+                    found = current
+                    break
+            current = self._serializer.read_next_object()
+
+        self._serializer.close_file()
+        return found
 
     # replace KeyValue in file
     # reads from end of file
-    #
-    # alg:
-    # open file, read line by line while didn't get our value
-    # when get replace value
-    # if not get add KeyValue to end of file
     def set(self, key_value=KeyValue()):
-        return
+        self._serializer.open_file('r+', True)
+        current = self._serializer.read_next_object()
+        is_found = False
+
+        while current is not None:
+            if self._is_key_value(current):
+                if current.key == key_value.key:
+                    is_found = True
+                    current.value = key_value.value
+                    break
+
+            current = self._serializer.read_next_object()
+
+        if not is_found:
+            self._serializer.add_key_value(key_value)
+
+        self._serializer.flush()
+        self._serializer.close_file()
 
     # remove key with value from file
     # reads from end of file
-    #
-    # alg:
-    # open file, read line by line while didn't get our value
-    # when found remove all line
     def remove(self, key=''):
-        return
+        self._serializer.open_file('r+', True)
+        current = self._serializer.read_next_object()
+
+        while current is not None:
+            if self._is_key_value(current) and current.key == key:
+                self._serializer.remove_current()
+                break
+
+            current = self._serializer.read_next_object()
+
+        self._serializer.flush()
+        self._serializer.close_file()
+
+    @staticmethod
+    def _is_key_value(probably_key_value_object):
+        return isinstance(probably_key_value_object, (KeyValueWithComment, KeyValue))
+
 
 if __name__ == "__main__":
-    pass
-    #filename = '../examples/simple_config.txt'
-    #parser = SettingsParser(filename)
-    #print parser.read_all()
-    #parser.remove('key1', True)
-    #print parser.read_all()
-    #parser.save('key1', 'HELLO! world orgjeoir e jgperojg perj gper ')
-    #parser.remove('key1', True)
-
-
+    filename = '../examples/simple_config.txt'
+    parser = SettingsParser(filename)
+    print parser.read_all_keys()
+    parser.remove('key4')
+    print parser.get('key4')
+    parser.set(KeyValue('key88', 'kkjkj'))
+    #print parser.read_all_keys()
 
