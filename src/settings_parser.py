@@ -38,10 +38,13 @@ class KeyValue(object):
         return '{0} {1}'.format(self.key, self.value)
 
     def __repr__(self):
-        return "KeyValue: '{0}' '{1}' ".format(self.key, self.value)
+        return "KeyValue: '{0}' '{1}'".format(self.key, self.value)
 
     def to_key_value(self):
         return self
+
+    def __eq__(self, other):
+        return self.key == other.key and self.value == other.value
 
 
 class KeyValueWithComment(KeyValue):
@@ -55,7 +58,7 @@ class KeyValueWithComment(KeyValue):
         return '{0} {1}'.format(KeyValue.to_string(self), self.comment)
 
     def __repr__(self):
-        return "KeyValueWithComment: '{0}' '{1}' ".format(self.key, self.value)
+        return "KeyValueWithComment: '{0}' '{1}'".format(self.key, self.value)
 
     def to_key_value(self):
         return KeyValue(self.key, self.value)
@@ -68,6 +71,7 @@ class FileSerializer:
         self._objects = list()
         self._current = 0
         self._is_reversed = False
+        self._keyRE = r'^\s*([a-zA-Z]+[a-zA-Z0-9-_]*)'
 
     def open_file(self, mode='r', reversed_order=False):
         self._file = open(self._filename, mode)
@@ -117,22 +121,23 @@ class FileSerializer:
         lines = list()
         if self._is_reversed:
             for obj in reversed(self._objects):
-                print obj.to_string()
                 lines.append(obj.to_string() + '\n')
         else:
             for obj in self._objects:
                 lines.append(obj.to_string() + '\n')
 
-        #print [x.to_string() for x in self._objects]
         self._file.writelines(lines)
         return
+
+    def is_key_name_valid(self, key):
+        return re.match(self._keyRE, key) is not None
 
     def _parse_line(self, line=''):
         if line.isspace():
             return EmptyString()
 
         stripped_line = line.strip()
-        found = re.findall(r'^\s*(\b[a-zA-Z]+[a-zA-Z0-9_-]+)\s*((?:\b[\S]+\s*)+)(#.*)?$', stripped_line)
+        found = re.findall(self._keyRE + r'\s+((?:\b[\S]+\s*)*)(#.*)?$', stripped_line)
         if len(found) == 0:
             if stripped_line[0] == '#':
                 return Comment(stripped_line)
@@ -140,17 +145,16 @@ class FileSerializer:
                 return NotValidString(stripped_line)
         else:
             if len(found[0][2]) == 0:
-                return KeyValue(found[0][0], found[0][1])
+                return KeyValue(found[0][0], found[0][1].strip())
             else:
-                return KeyValueWithComment(found[0][0], found[0][1], found[0][2])
+                return KeyValueWithComment(found[0][0], found[0][1].strip(), found[0][2])
 
 
 class SettingsParser:
     def __init__(self, filename=''):
         self._serializer = FileSerializer(filename)
 
-    # returns list of KeyValues
-    # maybe return without comments?
+    # returns list of KeyValues in file
     def read_all_keys(self):
         self._serializer.open_file('r', False)
         key_value_objects = list()
@@ -163,7 +167,6 @@ class SettingsParser:
 
         self._serializer.close_file()
         return key_value_objects
-        # return [x for x in objects if (isinstance(x, (KeyValueWithComment, KeyValue)))]
 
     # returns KeyValue by key or None
     # reads from end of file
@@ -184,7 +187,10 @@ class SettingsParser:
 
     # replace KeyValue in file
     # reads from end of file
-    def set(self, key_value=KeyValue()):
+    def set(self, key_value):
+        if not self._serializer.is_key_name_valid(key_value.key):
+            return False
+
         self._serializer.open_file('r+', True)
         current = self._serializer.read_next_object()
         is_found = False
@@ -203,6 +209,8 @@ class SettingsParser:
 
         self._serializer.flush()
         self._serializer.close_file()
+
+        return True
 
     # remove key with value from file
     # reads from end of file
@@ -223,14 +231,3 @@ class SettingsParser:
     @staticmethod
     def _is_key_value(probably_key_value_object):
         return isinstance(probably_key_value_object, (KeyValueWithComment, KeyValue))
-
-
-if __name__ == "__main__":
-    filename = '../examples/simple_config.txt'
-    parser = SettingsParser(filename)
-    print parser.read_all_keys()
-    parser.remove('key4')
-    print parser.get('key4')
-    parser.set(KeyValue('key88', 'kkjkj'))
-    #print parser.read_all_keys()
-
