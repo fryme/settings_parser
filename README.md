@@ -1,2 +1,3 @@
 
-Тестовое задание на python: [Requirements](https://raw.githubusercontent.com/fryme/settings_parser/blob/master/requirements.txt)
+Тестовое задание на python.
+[Постановка задачи.](https://raw.githubusercontent.com/fryme/settings_parser/blob/master/requirements.txt)
